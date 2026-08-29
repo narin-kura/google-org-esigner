@@ -1,0 +1,111 @@
+<script>
+(function () {
+  var canvas = document.getElementById('sigCanvas');
+  var ctx = canvas.getContext('2d');
+  var drawing = false, lastX = 0, lastY = 0, hasSignature = false;
+
+  function pos(evt) {
+    var rect = canvas.getBoundingClientRect();
+    var clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+    var clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+  function start(evt) {
+    drawing = true;
+    var p = pos(evt);
+    lastX = p.x; lastY = p.y;
+    evt.preventDefault();
+  }
+  function move(evt) {
+    if (!drawing) return;
+    var p = pos(evt);
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    lastX = p.x; lastY = p.y;
+    hasSignature = true;
+    evt.preventDefault();
+  }
+  function end() { drawing = false; }
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, { passive: false });
+  canvas.addEventListener('touchmove', move, { passive: false });
+  canvas.addEventListener('touchend', end);
+
+  document.getElementById('clearBtn').addEventListener('click', function () {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasSignature = false;
+  });
+
+  // Tries three lookup services in order (ad-blockers often block the
+  // first one), and gives up after 5s so signing never hangs on this.
+  function fetchIpLocation(cb) {
+    var done = false;
+    function finish(info) { if (!done) { done = true; cb(info); } }
+    setTimeout(function () { finish({ ip: '', location: '' }); }, 5000);
+
+    fetch('https://ipwho.is/')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ip) throw new Error('no ip');
+        finish({ ip: d.ip, location: [d.city, d.region, d.country].filter(Boolean).join(', ') });
+      })
+      .catch(function () {
+        return fetch('https://ipapi.co/json/')
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d || !d.ip) throw new Error('no ip');
+            finish({ ip: d.ip, location: [d.city, d.region, d.country_name].filter(Boolean).join(', ') });
+          });
+      })
+      .catch(function () {
+        return fetch('https://api.ipify.org?format=json')
+          .then(function (r) { return r.json(); })
+          .then(function (d) { finish({ ip: (d && d.ip) || '', location: '' }); });
+      })
+      .catch(function () { finish({ ip: '', location: '' }); });
+  }
+
+  document.getElementById('signForm').addEventListener('submit', function (evt) {
+    evt.preventDefault();
+    if (!hasSignature) { alert('Please draw your signature first.'); return; }
+    var typedName = document.getElementById('typedName').value.trim();
+    if (!typedName) { alert('Please type your full name.'); return; }
+
+    var submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+
+    fetchIpLocation(function (info) {
+      google.script.run
+        .withSuccessHandler(function (result) {
+          var viewLink = (result && result.viewUrl)
+            ? '<p><a href="' + result.viewUrl + '" target="_blank">View the signed document</a></p>'
+            : '';
+          document.getElementById('signContainer').innerHTML =
+            '<p class="done">Thanks — your signature has been recorded.</p>' + viewLink;
+        })
+        .withFailureHandler(function (err) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign';
+          alert('Could not submit: ' + err.message);
+        })
+        .submitSignature({
+          token: TOKEN,
+          typedName: typedName,
+          signatureDataUrl: canvas.toDataURL('image/png'),
+          ip: info.ip,
+          location: info.location,
+          userAgent: navigator.userAgent
+        });
+    });
+  });
+})();
+</script>

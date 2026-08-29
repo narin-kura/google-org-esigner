@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include('Html/Styles'); ?>
+</head>
+<body>
+<div class="wrap">
+  <h3>New signing envelope</h3>
+
+  <label for="docUrl">Google Doc URL</label>
+  <input id="docUrl" type="text" placeholder="https://docs.google.com/document/d/..." style="width:100%">
+
+  <label for="title">Title</label>
+  <input id="title" type="text" style="width:100%">
+
+  <h4>Signers (in signing order)</h4>
+  <div id="signerRows"></div>
+  <button type="button" id="addSignerBtn">+ Add signer</button>
+
+  <p class="muted">Each signer needs a matching tag alone on its own line in the document:
+  <code>{{signature:their@email.com}}</code> (or <code>{{signature:1}}</code> by position).
+  Signers are invited one at a time, in order.</p>
+
+  <button type="button" id="createBtn">Create &amp; send</button>
+  <p id="status" class="muted"></p>
+</div>
+
+<script>
+  var signerCount = 0;
+  function addSignerRow() {
+    signerCount++;
+    var div = document.createElement('div');
+    div.className = 'signerRow';
+    div.innerHTML =
+      '<b>' + signerCount + '.</b> ' +
+      '<input type="text" class="signerName" placeholder="Name">' +
+      '<input type="email" class="signerEmail" placeholder="Email">';
+    document.getElementById('signerRows').appendChild(div);
+  }
+  document.getElementById('addSignerBtn').addEventListener('click', addSignerRow);
+  addSignerRow();
+  addSignerRow();
+
+  document.getElementById('createBtn').addEventListener('click', function () {
+    var names = document.querySelectorAll('.signerName');
+    var emails = document.querySelectorAll('.signerEmail');
+    var signers = [];
+    for (var i = 0; i < names.length; i++) {
+      if (names[i].value.trim() && emails[i].value.trim()) {
+        signers.push({ name: names[i].value.trim(), email: emails[i].value.trim() });
+      }
+    }
+    var docUrl = document.getElementById('docUrl').value.trim();
+    var title = document.getElementById('title').value.trim();
+    var statusEl = document.getElementById('status');
+
+    if (!docUrl || !title || signers.length === 0) {
+      statusEl.textContent = 'Fill in the doc URL, title, and at least one signer.';
+      return;
+    }
+
+    document.getElementById('createBtn').disabled = true;
+    statusEl.textContent = 'Creating and sending the first invite...';
+
+    google.script.run
+      .withSuccessHandler(function () {
+        statusEl.textContent = 'Envelope created — first signer has been emailed.';
+      })
+      .withFailureHandler(function (err) {
+        document.getElementById('createBtn').disabled = false;
+        statusEl.textContent = 'Error: ' + err.message;
+      })
+      .createEnvelope({ docUrl: docUrl, title: title, signers: signers });
+  });
+</script>
+</body>
+</html>

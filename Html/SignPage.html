@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include('Html/Styles'); ?>
+</head>
+<body>
+<div class="wrap">
+<? if (data.state === 'invalid') { ?>
+  <p class="err">This signing link is invalid.</p>
+<? } else if (data.state === 'already_signed') { ?>
+  <p class="done">You've already signed this document<?= data.signerName ? (', ' + data.signerName) : '' ?>. Thank you.</p>
+<? } else if (data.state === 'declined') { ?>
+  <p class="err">This signing request was declined.</p>
+<? } else if (data.state === 'voided') { ?>
+  <p class="err">This document has been voided by the sender.</p>
+<? } else if (data.state === 'waiting') { ?>
+  <p class="info">This document is waiting on a previous signer to finish. You'll receive an email when it's your turn.</p>
+<? } else { ?>
+  <h2><?= data.envelopeTitle ?></h2>
+  <p>Please review the document below, then add your signature at the bottom.</p>
+  <iframe class="preview" src="<?= data.previewUrl ?>"></iframe>
+
+  <div id="signContainer">
+    <form id="signForm">
+      <label for="typedName">Full name</label>
+      <input id="typedName" type="text" value="<?= data.signerName ?>" required style="width:100%">
+      <p class="muted">Signing as <?= data.signerEmail ?></p>
+
+      <label>Draw your signature</label>
+      <canvas id="sigCanvas" width="400" height="150"></canvas>
+      <button type="button" id="clearBtn">Clear</button>
+      <button type="submit" id="submitBtn">Sign</button>
+      <p class="muted">By signing, you agree this constitutes your electronic signature on this document. Your name, email, approximate location/IP, and the time of signing will be recorded.</p>
+    </form>
+  </div>
+
+  <script>var TOKEN = <?!= JSON.stringify(data.token) ?>;</script>
+  <?!= include('Html/SignPage_JS'); ?>
+<? } ?>
+</div>
+</body>
+</html>
