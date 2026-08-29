@@ -122,21 +122,37 @@ A second, separate Apps Script project (its own `.clasp.json`, since
 Google Doc: it prompts for an email and inserts a correctly formatted tag
 on its own line at your cursor.
 
+It has its own real, versioned deployment (not just the auto "Head"
+deployment) — **`AKfycbz2MwDY4cxN-qWVWITM-ALFRqvsJp8s42jxcGJ0tZoCYssWCaBrmdrwbvxpmbMhMr9j`**
+("eSigner Docs Helper v1") — so documents run stable, released code rather
+than whatever's currently open in the editor.
+
 To install it in a document:
 
 1. From `docs-addon/`: `clasp open` to open its script editor.
-2. **Deploy → Test deployments** → set type to **Editor Add-on**.
+2. **Deploy → Test deployments** → set type to **Editor Add-on**, and make
+   sure the deployment selector is set to the **v1 deployment above**, not
+   "Head Deployment."
 3. Under "Test document," **Add test** → pick the Doc → "Installed for:
    Current user" → **Save**.
 4. Open that Doc, reload the tab, and the menu appears under **Extensions**
    after a few seconds (first use triggers an authorization prompt).
 
 This only attaches the menu to documents you explicitly add as test
-documents. Making it appear automatically in *every* Doc across the whole
-domain requires publishing it as a private Google Workspace Marketplace
-add-on (still free, but a chunkier one-time admin setup) — not done yet.
+documents (existing docs work fine, not just new ones — just add them the
+same way). Making it appear automatically on *every* doc with no manual add
+requires publishing it as a private Google Workspace Marketplace add-on,
+installed domain-wide by a Workspace Super Admin — not done yet.
 
-## Redeploying after code changes
+When you change `Addon.gs`, update the same deployment rather than creating
+a new one, so already-installed documents pick up the change:
+```
+cd docs-addon
+clasp push --force
+clasp deploy -i AKfycbz2MwDY4cxN-qWVWITM-ALFRqvsJp8s42jxcGJ0tZoCYssWCaBrmdrwbvxpmbMhMr9j --description "what changed"
+```
+
+## Redeploying the main app after code changes
 
 ```
 clasp push --force
