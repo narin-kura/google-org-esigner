@@ -1,92 +1,193 @@
 # eSigner
 
-A minimal, self-hosted-by-Google e-signature tool for Google Docs — no server,
-no database, no cloud deployment. Built on Google Apps Script for
-internal/nonprofit use.
+A minimal, self-hosted-by-Google e-signature tool for Google Docs — no
+server, no database, no cloud deployment to pay for or manage. Built on
+Google Apps Script for internal/nonprofit use.
 
-- **Datastore**: a Google Sheet (`Envelopes` / `Signers` / `AuditLog` tabs)
-- **Documents**: signatures are drawn directly into the original Google Doc,
-  replacing `{{signature:email@example.com}}` placeholder tags
-- **Delivery**: emailed one-time links (`MailApp`); access restricted to the
-  Google Workspace domain the app is deployed in
-- **Hosting**: the Apps Script Web App itself — Google hosts it for free
+## What it does
 
-## How it works
+You put a tag like `{{signature:jane@example.org}}` in a Google Doc. You
+tell eSigner who should sign, in what order. Each signer gets an emailed
+link, reviews the actual document read-only, draws their signature, and
+submits. eSigner stamps their signature directly into that same document,
+records who/when/where in an audit log, and — once everyone's done — saves
+a signed PDF to Drive and emails it to everyone involved.
 
-1. Put a `{{signature:their@email.com}}` tag alone on its own line wherever
-   someone should sign (numeric `{{signature:1}}` by signing order also
-   works). Multiple tags for the same signer all get stamped — e.g. a
-   signature on every page. The companion Docs add-on (`docs-addon/`) adds
-   an **Extensions → eSigner Docs Helper → Insert signature tag** menu so
-   tags are always correctly formatted.
-2. From the bound Sheet's **E-Signer** menu, choose **New envelope...**,
-   paste the Doc URL, give it a title, and list signers in signing order
-   (emails must match the tags).
-3. Signers are invited one at a time, in order. Each gets a unique link,
-   reviews the document read-only, types their name, draws a signature, and
-   submits. The app records typed name, email, drawn signature, approximate
-   IP/location, browser user agent, and server timestamp.
-4. When the last signer finishes, the app appends a "Certificate of
-   Completion" page to the document, exports it to PDF, saves the PDF to an
-   "E-Signer - Signed Documents" Drive folder, and emails it to all signers
-   plus the envelope creator.
+**The original document is edited in place.** Tags are consumed as people
+sign. If you want to reuse a document as a template, **File → Make a copy**
+first and send the copy.
 
-> **The original document is modified in place.** The tags are consumed as
-> people sign. To reuse a document as a template, **File → Make a copy**
-> first and send the copy for signing.
+## How it's built
+
+| Piece | What it is |
+|---|---|
+| Datastore | A Google Sheet — `Envelopes`, `Signers`, `AuditLog` tabs |
+| Admin UI | A custom **E-Signer** menu in that Sheet |
+| Signer UI | A Web App page (Apps Script `doGet`), reached via a unique emailed link |
+| Document editing | Apps Script's `DocumentApp` service, editing the Doc directly |
+| Email | `MailApp` |
+| Hosting | The Apps Script Web App deployment itself — Google runs it for free |
+
+Everything lives in one Apps Script project bound to the Sheet, pushed with
+[`clasp`](https://github.com/google/clasp) (Google's CLI for Apps Script) so
+the code can live in normal files and git instead of only in the browser
+editor.
 
 ## Setup (one-time)
 
-1. `npm install -g @google/clasp && clasp login` (log in as the account that
-   will own everything and send the emails).
-2. Enable the Apps Script API at script.google.com/home/usersettings.
-3. From this folder: `clasp create --type sheets --title "eSigner" --rootDir .`
-   then `clasp push --force`. (If `clasp create` complains, the folder must
-   contain no `appsscript.json` yet and no ancestor `.clasp.json`.)
-4. `clasp open` → **Deploy → New deployment → Web app**, Execute as **Me**,
-   Who has access per your needs (**Anyone within your domain** for
-   internal-only signing, **Anyone** for external signers). If links later
-   redirect to a login page unexpectedly, re-set the access level through
-   **Deploy → Manage deployments** in the browser — the manifest setting
-   alone does not always stick.
-5. Edit `setWebAppUrl()` in `Mail.gs` to hold your deployment's `/exec` URL
-   (from Manage deployments), push, then run `setWebAppUrl` once from the
-   editor's function dropdown. Invite links are built from this pinned URL —
-   `ScriptApp.getService().getUrl()` proved unreliable from menu context.
-6. Open the Sheet, reload, run **E-Signer → Setup sheets**, and authorize
-   when prompted (Advanced → Go to eSigner → Allow).
+1. **Install and log in to clasp**, as the Google account that should own
+   everything and send the emails:
+   ```
+   npm install -g @google/clasp
+   clasp login
+   ```
+2. **Enable the Apps Script API** for that account at
+   [script.google.com/home/usersettings](https://script.google.com/home/usersettings)
+   (toggle it on — takes a minute or two to propagate).
+3. **Create the project**, from this folder:
+   ```
+   clasp create --type sheets --title "eSigner" --rootDir .
+   clasp push --force
+   ```
+   This creates a new Google Sheet *and* a script project bound to it, and
+   pushes all the code. If `clasp create` refuses ("Project file already
+   exists"), the folder must be empty of `appsscript.json` first, and there
+   must be no `.clasp.json` in any parent folder — `clasp create` (unlike
+   `clasp push`) checks the whole ancestor chain.
+4. **Deploy as a Web App**: `clasp open` to open the script editor, then
+   **Deploy → New deployment → Web app**:
+   - Execute as: **Me**
+   - Who has access: **Anyone within your domain** (internal-only signing)
+     or **Anyone** (if outside signers need to sign too)
 
-### Redeploying after code changes
+   ⚠️ **This setting has to be confirmed once through this browser dialog.**
+   Setting `access`/`executeAs` only in `appsscript.json` and deploying via
+   `clasp deploy` does **not** reliably take effect — we lost real time to
+   this. If a signer's link ever unexpectedly redirects to a Google login
+   page, come back to **Deploy → Manage deployments → pencil icon** and
+   re-confirm the access level here.
+5. **Pin the Web App URL.** Copy the `/exec` URL from Manage deployments,
+   then in `Mail.gs` set it as the constant inside `setWebAppUrl()`. Push,
+   then run **`setWebAppUrl`** once from the editor's function dropdown
+   (top toolbar, next to Run). This matters because
+   `ScriptApp.getService().getUrl()` — the "just look up your own URL"
+   method — proved unreliable when called from a menu action rather than a
+   real web request; it produced links to a deployment that didn't exist.
+   Pinning the URL removes that failure mode entirely.
+6. **Authorize the script.** Open the Sheet, reload the tab, and you should
+   see an **E-Signer** menu next to Help. Click **E-Signer → Setup sheets**.
+   The first run shows Google's "unverified app" screen (normal for a
+   personal script) — click **Advanced → Go to eSigner (unsafe) → Allow**.
+   This creates the `Envelopes`/`Signers`/`AuditLog` tabs.
+
+## Sending an envelope
+
+1. In your Google Doc, put a tag on its own line wherever someone should
+   sign:
+   ```
+   {{signature:jane@example.org}}
+   ```
+   Numeric tags (`{{signature:1}}`, matching signing order) also work if
+   you'd rather not use emails. A signer can have more than one tag (e.g.
+   initials on every page) — all of them get filled in.
+
+   Typing tags by hand is easy to get wrong, so there's a companion
+   [Docs add-on](#docs-add-on-docs-addon) that inserts them for you via a
+   menu.
+
+2. In the Sheet: **E-Signer → New envelope...** — paste the Doc's URL, give
+   it a title, and list signers in signing order (their email must match
+   their tag exactly). Click **Create & send**.
+
+3. Signers are invited **one at a time, in order**. Each gets an email with
+   a unique link. They review the document (read-only preview), type their
+   name, draw a signature, and submit. eSigner records their typed name,
+   email, drawn signature, best-effort IP/location, browser, and a server
+   timestamp — then invites the next signer.
+
+4. When the last signer finishes: a "Certificate of Completion" page (who
+   signed, when, from where) is appended to the document, the whole thing
+   is exported to PDF, saved into an **"E-Signer - Signed Documents"**
+   Drive folder, and emailed to every signer plus whoever created the
+   envelope.
+
+You can watch progress at any time in the **Envelopes** and **Signers**
+tabs of the Sheet (`Status` column: `Sent` → `Completed`).
+
+## Docs add-on (`docs-addon/`)
+
+A second, separate Apps Script project (its own `.clasp.json`, since
+`clasp create` needs a folder with no ancestor config — see above) that adds
+**Extensions → eSigner Docs Helper → Insert signature tag** inside any
+Google Doc: it prompts for an email and inserts a correctly formatted tag
+on its own line at your cursor.
+
+To install it in a document:
+
+1. From `docs-addon/`: `clasp open` to open its script editor.
+2. **Deploy → Test deployments** → set type to **Editor Add-on**.
+3. Under "Test document," **Add test** → pick the Doc → "Installed for:
+   Current user" → **Save**.
+4. Open that Doc, reload the tab, and the menu appears under **Extensions**
+   after a few seconds (first use triggers an authorization prompt).
+
+This only attaches the menu to documents you explicitly add as test
+documents. Making it appear automatically in *every* Doc across the whole
+domain requires publishing it as a private Google Workspace Marketplace
+add-on (still free, but a chunkier one-time admin setup) — not done yet.
+
+## Redeploying after code changes
 
 ```
 clasp push --force
 clasp deploy -i <existing-deployment-id> --description "what changed"
 ```
 
-Always redeploy the existing deployment ID (`clasp deployments` lists it) —
-a brand-new deployment gets a new URL, breaking every link already emailed.
+**Always** redeploy the *existing* deployment ID — find it with
+`clasp deployments`. Creating a brand-new deployment gets a brand-new
+`/exec` URL, which breaks every signing link already emailed and won't
+match the pinned URL from step 5 above.
 
-### Docs add-on (`docs-addon/`)
+## Troubleshooting
 
-A separate tiny Apps Script project (own `.clasp.json`) providing the
-tag-inserter menu inside Google Docs. Installed per-account via the script
-editor's **Deploy → Test deployments → Editor Add-on** flow; publishing
-domain-wide requires a private Google Workspace Marketplace listing (not
-done yet).
+**A signer's link shows "Sorry, unable to open the file" or redirects to a
+Google sign-in page.**
+Almost always the deployment's access level — go re-confirm it via
+**Deploy → Manage deployments → pencil icon** in the browser (see step 4).
+Also double check the email's link actually starts with the deployment ID
+from `clasp deployments` / your pinned URL — an old email sent before a
+fix, or a leftover script project from an earlier setup attempt, can look
+identical at a glance but point at a dead deployment.
+
+**`Session.getEffectiveUser` / similar permission errors.**
+A scope is missing from `oauthScopes` in `appsscript.json`. Add it, push,
+and redeploy — Apps Script only grants what's explicitly listed once you've
+declared any scopes by hand.
+
+**The document doesn't look updated after a signer signs.**
+If you had the Doc open in a browser tab while the script edited it,
+reload the tab — Docs doesn't live-refresh script-made edits.
+
+**Multiple "E-Signer - Signed Documents" folders, or "eSigner" Sheets.**
+Leftovers from testing/setup attempts. There should be exactly one Sheet
+(the one `clasp create` made) and it's safe to consolidate/trash the rest —
+nothing else references them.
 
 ## Limitations (by design, for a small internal/nonprofit tool)
 
-- **Not ESIGN/UETA/eIDAS-certified.** An inserted image plus an audit trail,
-  not a legal compliance product.
-- **IP/location is client-reported and best-effort** (tries ipwho.is,
-  ipapi.co, ipify from the signer's browser; ad-blockers commonly block all
-  three, leaving "unknown"). Timestamp, name, email, and the signature
-  itself are the reliable audit fields.
-- **Access control = domain login + possession of the emailed link.** No
-  SMS/ID verification.
-- **Google quota ceilings** (Workspace: ~1,500 emails/day, 6-min execution
-  cap) size this for small volume.
+- **Not ESIGN/UETA/eIDAS-certified.** An inserted image plus an audit
+  trail, not a legal compliance product.
+- **IP/location is client-reported and best-effort** (tries `ipwho.is`,
+  `ipapi.co`, then `ipify.org` from the signer's browser, 5s timeout total).
+  Ad-blockers commonly block all three, leaving it "unknown." Timestamp,
+  name, email, and the signature itself are the reliable audit fields —
+  Apps Script has no server-side access to a visitor's real IP at all.
+- **Access control = your chosen deployment access level, plus possession
+  of the emailed link.** No SMS/ID verification.
+- **Google account quotas** (Workspace: ~1,500 emails/day, ~6-minute
+  execution ceiling) size this for small volume, not enterprise scale.
 - **Tags must sit alone in their own paragraph or table cell.**
-- **Single owner** — everything runs as the deploying account.
-- **Sequential signing only** — each signer is invited after the previous
-  one finishes.
+- **Single owner** — every Drive/Doc/Sheet/Mail action runs as whichever
+  account deployed the Web App.
+- **Sequential signing only** — each signer is invited only after the
+  previous one finishes; no all-at-once parallel signing yet.

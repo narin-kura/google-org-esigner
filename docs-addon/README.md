@@ -1,9 +1,9 @@
-Source for the "eSigner Docs Helper" add-on (see main README's "Docs add-on"
-section for what it does and how to install it).
+# eSigner Docs Helper
 
-This copy is tracked here for version control. The actual `clasp`-linked
-working copy lives in a **sibling** folder (`../../eSigner-docs-addon/`)
-rather than nested inside the main eSigner project — `clasp create` refuses
-to run in a folder that has an ancestor `.clasp.json`, which this project's
-root does. When editing the add-on, edit both copies (or copy this one over
-the sibling before `clasp push`).
+A tiny companion Apps Script project (separate from the main eSigner app)
+that adds an **Extensions → eSigner Docs Helper → Insert signature tag**
+menu inside Google Docs — so tags are always typed correctly instead of by
+hand.
+
+See the main [README](../README.md#docs-add-on-docs-addon) for what it does
+and how to install it.
