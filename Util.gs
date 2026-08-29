@@ -66,6 +66,60 @@ function diagnoseSignedFolder_() {
   Logger.log('Total folders named "E-Signer - Signed Documents": ' + i);
 }
 
+/** One-off: creates the docs-addon's ToS/Privacy Policy docs, shares them
+ * viewable, and logs their URLs for pasting into the Marketplace listing. */
+function createLegalDocs_() {
+  var tos = DocumentApp.create('eSigner Docs Helper - Terms of Service');
+  tos.getBody().setText(
+    'eSigner Docs Helper - Terms of Service\n\n' +
+    'This is an internal tool built for and used exclusively by Sri Lakshmi Narasimha Hindu Temple ' +
+    '(slnhindutemple.org) staff and volunteers. It is not distributed publicly and is not available ' +
+    'for use outside this organization.\n\n' +
+    'The tool inserts a short placeholder tag into a Google Doc you are actively editing, at your ' +
+    'explicit request, for use with the organization\'s internal eSigner document-signing system. ' +
+    'It does not access, read, or transmit document content beyond that single insertion action.\n\n' +
+    'Use of this tool is subject to the organization\'s own internal policies. By using it, you agree ' +
+    'to use it only for its intended purpose within the organization.\n\n' +
+    'Questions: board-treasurer@slnhindutemple.org'
+  );
+  DriveApp.getFileById(tos.getId()).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  var pp = DocumentApp.create('eSigner Docs Helper - Privacy Policy');
+  pp.getBody().setText(
+    'eSigner Docs Helper - Privacy Policy\n\n' +
+    'This add-on is an internal tool for Sri Lakshmi Narasimha Hindu Temple (slnhindutemple.org). ' +
+    'It requests access only to the specific Google Doc you are actively editing when you use it ' +
+    '(the documents.currentonly permission) - it cannot access any other file in your Drive.\n\n' +
+    'What it does: when you choose "Insert signature tag" from its menu, it inserts a short text tag ' +
+    '(e.g. {{signature:name@example.com}}) at your cursor location, using the email address you type ' +
+    'into the prompt.\n\n' +
+    'What it does not do: it does not collect, store, transmit, or share any data outside of the ' +
+    'single document you are editing. It uses no analytics, tracking, or third-party services. ' +
+    'No data leaves Google\'s own infrastructure.\n\n' +
+    'Data retention: none - the add-on holds no data of its own. All content lives only in your ' +
+    'Google Doc, under your organization\'s normal Google Workspace data controls.\n\n' +
+    'Contact: board-treasurer@slnhindutemple.org'
+  );
+  DriveApp.getFileById(pp.getId()).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  Logger.log('Terms of Service: ' + tos.getUrl());
+  Logger.log('Privacy Policy: ' + pp.getUrl());
+  return { tos: tos.getUrl(), privacy: pp.getUrl() };
+}
+
+/** Sheet-menu wrapper for createLegalDocs_: shows the URLs in a dialog. */
+function createLegalDocsMenu_() {
+  var urls = createLegalDocs_();
+  var html = HtmlService.createHtmlOutput(
+    '<div style="font-family:Arial;font-size:13px;padding:8px">' +
+    '<p><b>Terms of Service:</b><br><a href="' + urls.tos + '" target="_blank">' + urls.tos + '</a></p>' +
+    '<p><b>Privacy Policy:</b><br><a href="' + urls.privacy + '" target="_blank">' + urls.privacy + '</a></p>' +
+    '<p>Both are view-only-by-link. Copy these into the Marketplace Store Listing fields.</p>' +
+    '</div>'
+  ).setWidth(520).setHeight(220);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Legal doc URLs');
+}
+
 function cleanupTestEnvelopeCopies_() {
   var files = DriveApp.searchFiles('title contains "(envelope " and mimeType = "application/vnd.google-apps.document"');
   var count = 0;

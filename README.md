@@ -127,22 +127,43 @@ deployment) — **`AKfycbz2MwDY4cxN-qWVWITM-ALFRqvsJp8s42jxcGJ0tZoCYssWCaBrmdrwb
 ("eSigner Docs Helper v1") — so documents run stable, released code rather
 than whatever's currently open in the editor.
 
-To install it in a document:
+**It is published domain-wide** as a private Google Workspace Marketplace
+app ("Esigner-Internal-SLNHINDUTEMPLE"), so it appears under **Extensions**
+in every Doc for everyone in the org — no per-document setup. How that was done
+(2026-08-28), for the next time something like this is needed:
 
-1. From `docs-addon/`: `clasp open` to open its script editor.
-2. **Deploy → Test deployments** → set type to **Editor Add-on**, and make
-   sure the deployment selector is set to the **v1 deployment above**, not
-   "Head Deployment."
-3. Under "Test document," **Add test** → pick the Doc → "Installed for:
-   Current user" → **Save**.
-4. Open that Doc, reload the tab, and the menu appears under **Extensions**
-   after a few seconds (first use triggers an authorization prompt).
+1. **Create a GCP project inside the Workspace org** (a personal-account
+   project cannot offer the "Internal" audience type). Ours:
+   `esigner-507002` / project number `1033456347485`.
+2. **Link it to the Apps Script project**: script editor → Project
+   Settings (gear) → Change project → paste the GCP project **number**.
+   Until this link exists, the Marketplace SDK form rejects the script ID
+   with "Project Key is not associated..." — and the error can persist for
+   several minutes after linking (propagation delay), so wait and retry
+   before assuming it failed.
+3. **OAuth consent screen** (Google Auth Platform) in that GCP project:
+   the "Get Started" wizard → app name, support email, **Audience:
+   Internal**, contact email. Internal audience = no Google review ever.
+4. **Enable the Google Workspace Marketplace SDK** (APIs & Services →
+   Library) → **App Configuration** tab: Visibility **Private**,
+   Installation Settings **Admin Only**, Editor Add-on integration with
+   the Apps Script **script ID** + **version number** (from
+   `clasp versions`), OAuth scope
+   `https://www.googleapis.com/auth/documents.currentonly`, developer
+   name/email/website.
+5. **Store Listing** tab: name, short + detailed descriptions, icon,
+   screenshots, support URL, Terms of Service + Privacy Policy URLs.
+   Field gotchas we hit: the app name has a short length cap and all-caps
+   words can trip validation; `{{...}}` braces in descriptions can too —
+   keep everything plain text. The ToS/Privacy URLs point at Google Docs
+   created by the main project's **E-Signer → Create ToS/Privacy docs**
+   menu item (view-only-by-link; text lives in
+   `docs-addon/terms-of-service.md` / `privacy-policy.md`).
+6. **Publish.** Private visibility publishes immediately, no review queue.
 
-This only attaches the menu to documents you explicitly add as test
-documents (existing docs work fine, not just new ones — just add them the
-same way). Making it appear automatically on *every* doc with no manual add
-requires publishing it as a private Google Workspace Marketplace add-on,
-installed domain-wide by a Workspace Super Admin — not done yet.
+The Test-deployments route (Deploy → Test deployments → Editor Add-on →
+add specific docs) still works for trying unreleased changes on individual
+documents before shipping them.
 
 When you change `Addon.gs`, update the same deployment rather than creating
 a new one, so already-installed documents pick up the change:

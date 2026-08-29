@@ -8,6 +8,7 @@ function onOpen() {
     .createMenu('E-Signer')
     .addItem('New envelope...', 'showEnvelopeDialog')
     .addItem('Setup sheets', 'ensureSheetsExist_')
+    .addItem('Create ToS/Privacy docs (one-time)', 'createLegalDocsMenu_')
     .addToUi();
 }
 

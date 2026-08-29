@@ -1,0 +1,5 @@
+# Push everything except the nested sub-projects (each has its own .clasp.json)
+**/**
+!*.gs
+!appsscript.json
+!Html/**
